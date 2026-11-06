@@ -94,24 +94,87 @@ de configuración de Heroku.
 
 ## Conectar Telegram
 
-Tras desplegar la API y configurar `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y
-`PUBLIC_URL`, registra el webhook con Bot API:
+### 1. Crear y configurar el bot
+
+Habla con `@BotFather` en Telegram, ejecuta `/newbot` y copia el token
+entregado en `TELEGRAM_TOKEN`. Elige un valor secreto para `TELEGRAM_SECRET`.
+
+### 2. Configurar Heroku y desplegar
+
+Desde la raíz del proyecto:
 
 ```powershell
-curl -X POST "https://api.telegram.org/bot$env:TELEGRAM_TOKEN/setWebhook" -d "url=$env:PUBLIC_URL/telegram" -d "secret_token=$env:TELEGRAM_SECRET"
+heroku config:set TELEGRAM_TOKEN=TU_TOKEN TELEGRAM_SECRET=TU_SECRETO --app NOMBRE-DE-TU-APP
+git add api/app.py scripts/set_webhook.py scripts/webhook_info.py README.md
+git commit -m "conecta Telegram al router"
+git push origin main
+git push heroku main
 ```
 
-En PowerShell, si las variables aún no están definidas en la sesión:
+Si aún no existe el remoto de Heroku, créalo una vez:
 
 ```powershell
-$env:TELEGRAM_TOKEN = "TU_TOKEN"
-$env:TELEGRAM_SECRET = "TU_SECRETO"
+heroku git:remote -a NOMBRE-DE-TU-APP
+```
+
+### 3. Registrar y comprobar el webhook
+
+Configura `PUBLIC_URL` con la URL HTTPS de Heroku en `.env` y ejecuta:
+
+```powershell
+python scripts/set_webhook.py
+python scripts/webhook_info.py
+```
+
+`set_webhook.py` usa `PUBLIC_URL + /telegram` y `TELEGRAM_SECRET`. El segundo
+script permite confirmar la URL registrada y revisar `last_error_message` o
+los errores pendientes de Telegram.
+
+En PowerShell, `.env` debe contener, por ejemplo:
+
+```powershell
 $env:PUBLIC_URL = "https://NOMBRE-DE-TU-APP.herokuapp.com"
 ```
 
-El endpoint `/telegram` está preparado como cascarón y actualmente responde
-`{"ok":true}` a cualquier JSON. La recepción, verificación del secreto y el
-envío de respuestas a Telegram se completarán en la siguiente parte.
+### 4. Probar el bot y revisar logs
+
+Escribe al bot estos seis mensajes y verifica que cada uno llegue a la ruta
+correcta en los logs:
+
+```text
+¿tienen la polera azul en talla M?       -> preventa
+mi pedido 4521 llegó roto                -> postventa
+hola                                      -> generica
+¿cuánto cuesta el envío a Valparaíso?    -> preventa
+quiero devolver unas zapatillas           -> postventa
+¿qué hora es en Tokio?                    -> generica
+```
+
+Observa los logs con:
+
+```powershell
+heroku logs --tail --app NOMBRE-DE-TU-APP
+```
+
+### 5. Si el bot no responde
+
+Revisa que:
+
+1. El webhook apunte a `https://.../telegram`, no a HTTP ni a la raíz `/`.
+2. `TELEGRAM_SECRET` sea exactamente igual en Heroku y en el registro del webhook.
+3. `TELEGRAM_TOKEN` sea el token correcto entregado por `@BotFather`.
+4. `python scripts/webhook_info.py` no muestre `last_error_message`.
+
+### Prueba local opcional
+
+Puedes exponer la API local con Cloudflared:
+
+```powershell
+cloudflared tunnel --url http://localhost:8000
+```
+
+Usa la URL HTTPS que entregue Cloudflared como `PUBLIC_URL`, ejecuta
+`python scripts/set_webhook.py` y luego revisa `python scripts/webhook_info.py`.
 
 ## Bruno
 
