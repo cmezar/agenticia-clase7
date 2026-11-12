@@ -23,6 +23,30 @@ Copy-Item .env.example .env
 
 Edita `.env` y completa `GOOGLE_API_KEY`. No subas `.env` a GitHub.
 
+## Clave de la API
+
+`/chat` requiere la cabecera `X-API-Key`. Genera una clave aleatoria, por
+ejemplo, con:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+En local, guarda el resultado en `.env`:
+
+```text
+API_KEY=tu_clave_generada
+```
+
+En Heroku, configúrala como Config Var (sin ponerla en el código):
+
+```powershell
+heroku config:set API_KEY=TU_CLAVE_GENERADA --app NOMBRE-DE-TU-APP
+```
+
+Puedes introducirla en `/docs` mediante el botón **Authorize** (candado) o
+enviar `X-API-Key` manualmente en las peticiones a `/chat`.
+
 ## Correr el router en local
 
 Desde la raíz del proyecto:
@@ -56,7 +80,7 @@ curl http://localhost:8000/health
 Ejemplo de chat:
 
 ```powershell
-curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"user_id":"usuario-123","texto":"¿Tienen la polera azul en talla M?"}'
+curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "X-API-Key: TU_CLAVE" -d '{"user_id":"usuario-123","texto":"¿Tienen la polera azul en talla M?"}'
 ```
 
 El endpoint `/chat` devuelve `ruta`, `motivo` y `respuesta`. Un body sin

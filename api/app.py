@@ -3,12 +3,14 @@
 import logging
 import os
 import hmac
+import secrets
 from typing import Any, Literal
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, Header, HTTPException
+from fastapi import Body, FastAPI, Header, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
+from fastapi.security import APIKeyHeader
 from starlette.concurrency import run_in_threadpool
 
 from src.router.graph import build_graph
@@ -95,6 +97,13 @@ class ErrorResponse(BaseModel):
     )
 
 
+api_key_header = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=False,
+    description="Clave configurada en la variable de entorno API_KEY.",
+)
+
+
 @app.get("/health", tags=["salud"])
 def health() -> dict[str, Any]:
     return {"ok": True, "modelo": os.getenv("MODELO", "gemini-3.5-flash-lite")}
@@ -107,6 +116,10 @@ def health() -> dict[str, Any]:
     summary="Enruta un mensaje del chat ecommerce",
     responses={
         200: {"description": "Mensaje enrutado y respondido correctamente."},
+        401: {
+            "description": "Falta la clave de API o no es válida.",
+            "model": ErrorResponse,
+        },
         422: {"description": "El body no cumple el esquema requerido."},
         502: {
             "description": "El proveedor del modelo no pudo procesar el mensaje.",
@@ -114,7 +127,16 @@ def health() -> dict[str, Any]:
         },
     },
 )
-def chat(request: ChatRequest) -> ChatResponse:
+def chat(
+    request: ChatRequest,
+    api_key: str | None = Security(api_key_header),
+) -> ChatResponse:
+    expected_api_key = os.getenv("API_KEY", "")
+    if not expected_api_key or not api_key or not secrets.compare_digest(
+        api_key, expected_api_key
+    ):
+        raise HTTPException(status_code=401, detail="Falta una clave de API válida")
+
     try:
         result = graph.invoke(
             {
