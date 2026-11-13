@@ -7,3 +7,5 @@ httpx
 pydantic
 python-dotenv
 pytest
+langgraph-checkpoint-postgres
+psycopg[binary,pool]

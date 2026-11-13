@@ -1,13 +1,18 @@
 """Grafo LangGraph que enruta mensajes del ecommerce."""
 
 import os
+import logging
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.graph.message import add_messages
 from langgraph.graph import END, START, StateGraph
+from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
@@ -17,6 +22,9 @@ from .prompts import (
     ROUTER_PROMPT,
     RESPUESTA_GENERICA_PROMPT,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class Decision(BaseModel):
@@ -36,7 +44,54 @@ class RouterState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-def build_graph():
+@dataclass
+class PersistenceResources:
+    """Checkpointer y recursos que deben vivir mientras vive el proceso."""
+
+    checkpointer: BaseCheckpointSaver
+    memory_type: Literal["ram", "postgres"]
+    pool: ConnectionPool | None = None
+
+    def close(self) -> None:
+        if self.pool is not None:
+            self.pool.close()
+
+
+def _database_url() -> str:
+    """Devuelve DATABASE_URL en el formato aceptado por psycopg."""
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url.startswith("postgres://"):
+        return "postgresql://" + url.removeprefix("postgres://")
+    return url
+
+
+def create_persistence() -> PersistenceResources:
+    """Abre Postgres si está disponible y degrada a RAM si no lo está."""
+    database_url = _database_url()
+    if not database_url:
+        logger.info("DATABASE_URL no está configurada; usando MemorySaver (ram)")
+        return PersistenceResources(MemorySaver(), "ram")
+
+    pool = ConnectionPool(
+        conninfo=database_url,
+        min_size=1,
+        max_size=2,
+        open=False,
+        check=ConnectionPool.check_connection,
+    )
+    try:
+        pool.open(wait=True)
+        checkpointer = PostgresSaver(pool)
+        checkpointer.setup()
+        logger.info("Memoria persistente habilitada con Postgres")
+        return PersistenceResources(checkpointer, "postgres", pool)
+    except Exception:
+        logger.exception("No se pudo iniciar Postgres; usando MemorySaver (ram)")
+        pool.close()
+        return PersistenceResources(MemorySaver(), "ram")
+
+
+def build_graph(checkpointer: BaseCheckpointSaver | None = None):
     """Construye el grafo compilado con memoria por thread_id."""
     router_llm = None
 
@@ -104,4 +159,4 @@ def build_graph():
     builder.add_edge("agente_preventa", END)
     builder.add_edge("agente_postventa", END)
     builder.add_edge("respuesta_generica", END)
-    return builder.compile(checkpointer=MemorySaver())
+    return builder.compile(checkpointer=checkpointer or MemorySaver())

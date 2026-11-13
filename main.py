@@ -22,7 +22,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("agente", help="Nombre de la carpeta dentro de src/")
     parser.add_argument("mensaje", nargs="?", help="Mensaje inicial del agente")
     parser.add_argument("--mensaje", dest="mensaje_flag", help="Mensaje inicial alternativo")
-    parser.add_argument("--thread-id", default="cli", help="Identificador de memoria del hilo")
+    parser.add_argument(
+        "--hilo",
+        "--thread-id",
+        dest="thread_id",
+        default="cli",
+        help="Identificador de memoria del hilo",
+    )
     parser.add_argument("--saltos", action="store_true", help="Muestra los nodos visitados")
     parser.add_argument("--diagrama", action="store_true", help="Muestra el grafo como Mermaid")
     return parser
@@ -55,10 +61,17 @@ def main() -> None:
             raise SystemExit(2) from error
         raise
 
-    graph = module.build_graph()
     if args.diagrama:
+        graph = module.build_graph()
         print(graph.get_graph().draw_mermaid())
         return
+
+    persistence = None
+    if hasattr(module, "create_persistence"):
+        persistence = module.create_persistence()
+        graph = module.build_graph(persistence.checkpointer)
+    else:
+        graph = module.build_graph()
 
     mensaje = args.mensaje_flag if args.mensaje_flag is not None else args.mensaje
     if mensaje is None:
@@ -66,21 +79,23 @@ def main() -> None:
     input_dict = {"mensaje": mensaje, "messages": [("user", mensaje)]}
     config = {"configurable": {"thread_id": args.thread_id}}
 
-    if args.saltos:
-        final = None
-        for chunk in graph.stream(input_dict, config=config, stream_mode="updates"):
-            final = chunk
-            for node_name, update in chunk.items():
-                print(f"-> nodo: {node_name}")
-                if node_name == "router" and isinstance(update, dict):
-                    print(f"   ruta: {update.get('ruta')}")
-                    print(f"   motivo: {update.get('motivo')}")
-                _imprimir_tool_calls(update)
-        print("OK")
-        return
+    try:
+        if args.saltos:
+            for chunk in graph.stream(input_dict, config=config, stream_mode="updates"):
+                for node_name, update in chunk.items():
+                    print(f"-> nodo: {node_name}")
+                    if node_name == "router" and isinstance(update, dict):
+                        print(f"   ruta: {update.get('ruta')}")
+                        print(f"   motivo: {update.get('motivo')}")
+                    _imprimir_tool_calls(update)
+            print("OK")
+            return
 
-    result = graph.invoke(input_dict, config=config)
-    print(result)
+        result = graph.invoke(input_dict, config=config)
+        print(result)
+    finally:
+        if persistence is not None:
+            persistence.close()
 
 
 if __name__ == "__main__":

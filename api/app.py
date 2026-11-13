@@ -4,6 +4,7 @@ import logging
 import os
 import hmac
 import secrets
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import httpx
@@ -13,10 +14,29 @@ from pydantic import BaseModel, ConfigDict, Field
 from fastapi.security import APIKeyHeader
 from starlette.concurrency import run_in_threadpool
 
-from src.router.graph import build_graph
+from src.router.graph import PersistenceResources, build_graph, create_persistence
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+graph = None
+_persistence: PersistenceResources | None = None
+_memory_type: Literal["ram", "postgres"] = "ram"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _persistence, _memory_type, graph
+    _persistence = create_persistence()
+    _memory_type = _persistence.memory_type
+    graph = build_graph(_persistence.checkpointer)
+    try:
+        yield
+    finally:
+        _persistence.close()
+        _persistence = None
+        graph = None
+
 
 app = FastAPI(
     title="Ecommerce Router API",
@@ -25,16 +45,13 @@ app = FastAPI(
         "API para enrutar mensajes de un chat de ecommerce. "
         "Cada mensaje se clasifica como preventa, postventa o generica."
     ),
+    lifespan=lifespan,
     openapi_tags=[
         {"name": "salud", "description": "Estado y configuración pública de la API."},
         {"name": "chat", "description": "Clasificación y respuesta del chat ecommerce."},
         {"name": "telegram", "description": "Webhook reservado para la integración con Telegram."},
     ],
 )
-
-# El grafo se construye una sola vez al importar la aplicación, no por request.
-graph = build_graph()
-
 
 class ChatRequest(BaseModel):
     """Mensaje de un usuario para el router."""
@@ -106,7 +123,11 @@ api_key_header = APIKeyHeader(
 
 @app.get("/health", tags=["salud"])
 def health() -> dict[str, Any]:
-    return {"ok": True, "modelo": os.getenv("MODELO", "gemini-3.5-flash-lite")}
+    return {
+        "ok": True,
+        "modelo": os.getenv("MODELO", "gemini-3.5-flash-lite"),
+        "memoria": _memory_type,
+    }
 
 
 @app.post(
@@ -138,6 +159,8 @@ def chat(
         raise HTTPException(status_code=401, detail="Falta una clave de API válida")
 
     try:
+        if graph is None:
+            raise RuntimeError("El grafo todavía no está iniciado")
         result = graph.invoke(
             {
                 "mensaje": request.texto,
@@ -200,6 +223,8 @@ async def telegram(
         return {"ok": True}
 
     try:
+        if graph is None:
+            raise RuntimeError("El grafo todavía no está iniciado")
         result = await run_in_threadpool(
             graph.invoke,
             {

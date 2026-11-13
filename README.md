@@ -21,7 +21,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Edita `.env` y completa `GOOGLE_API_KEY`. No subas `.env` a GitHub.
+Edita `.env` y completa `GOOGLE_API_KEY` y `DATABASE_URL`. No subas `.env` a GitHub.
 
 ## Clave de la API
 
@@ -108,7 +108,7 @@ Después de instalar y autenticar Heroku:
 ```powershell
 heroku login
 heroku create NOMBRE-DE-TU-APP
-heroku config:set GOOGLE_API_KEY=TU_CLAVE MODELO=gemini-3.5-flash-lite TELEGRAM_TOKEN=TU_TOKEN TELEGRAM_SECRET=TU_SECRETO PUBLIC_URL=https://NOMBRE-DE-TU-APP.herokuapp.com
+heroku config:set GOOGLE_API_KEY=TU_CLAVE DATABASE_URL=TU_URL_DE_POSTGRES MODELO=gemini-3.5-flash-lite TELEGRAM_TOKEN=TU_TOKEN TELEGRAM_SECRET=TU_SECRETO PUBLIC_URL=https://NOMBRE-DE-TU-APP.herokuapp.com
 git push heroku main
 heroku open
 ```
