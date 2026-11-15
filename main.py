@@ -45,6 +45,19 @@ def _imprimir_tool_calls(update: object) -> None:
             print(f"   tool: {name}({args})")
 
 
+def _imprimir_resultado(result: object) -> None:
+    """Muestra el resultado del router de forma legible para la terminal."""
+    if not isinstance(result, dict):
+        print(result)
+        return
+
+    print("\nResultado")
+    print("=" * 40)
+    print(f"Ruta:      {result.get('ruta', '')}")
+    print(f"Motivo:    {result.get('motivo', '')}")
+    print(f"Respuesta: {result.get('respuesta', '')}")
+
+
 def main() -> None:
     load_dotenv()
     args = _parser().parse_args()
@@ -92,7 +105,7 @@ def main() -> None:
             return
 
         result = graph.invoke(input_dict, config=config)
-        print(result)
+        _imprimir_resultado(result)
     finally:
         if persistence is not None:
             persistence.close()

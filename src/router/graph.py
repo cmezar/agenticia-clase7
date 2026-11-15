@@ -3,10 +3,11 @@
 import os
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Literal
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -25,6 +26,11 @@ from .prompts import (
 
 
 logger = logging.getLogger(__name__)
+
+TIENDA_CONTEXT = (Path(__file__).resolve().parents[2] / "data" / "tienda.md").read_text(
+    encoding="utf-8"
+)
+GENERICA_FALLBACK = "Este chat es para ayudarte con nuestra tienda y sus productos."
 
 
 class Decision(BaseModel):
@@ -94,6 +100,7 @@ def create_persistence() -> PersistenceResources:
 def build_graph(checkpointer: BaseCheckpointSaver | None = None):
     """Construye el grafo compilado con memoria por thread_id."""
     router_llm = None
+    generica_llm = None
 
     def router(state: RouterState) -> dict:
         nonlocal router_llm
@@ -116,27 +123,47 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
 
     def agente_preventa(state: RouterState) -> dict:
         _ = AGENTE_PREVENTA_PROMPT
-        return {
-            "respuesta": (
-                f"Soy el agente de preventa. Recibí: {state['mensaje']}. "
-                "Pronto podré ayudarte con productos y compras."
-            )
-        }
+        respuesta = (
+            f"Soy el agente de preventa. Recibí: {state['mensaje']}. "
+            "Pronto podré ayudarte con productos y compras."
+        )
+        return {"respuesta": respuesta, "messages": [AIMessage(content=respuesta)]}
 
     def agente_postventa(state: RouterState) -> dict:
         _ = AGENTE_POSTVENTA_PROMPT
-        return {
-            "respuesta": (
-                f"Soy el agente de postventa. Recibí: {state['mensaje']}. "
-                "Pronto podré ayudarte con tu pedido."
-            )
-        }
+        respuesta = (
+            f"Soy el agente de postventa. Recibí: {state['mensaje']}. "
+            "Pronto podré ayudarte con tu pedido."
+        )
+        return {"respuesta": respuesta, "messages": [AIMessage(content=respuesta)]}
 
     def respuesta_generica(state: RouterState) -> dict:
-        _ = RESPUESTA_GENERICA_PROMPT
-        return {
-            "respuesta": "Este chat es para ayudarte con nuestra tienda y sus productos."
-        }
+        nonlocal generica_llm
+        try:
+            if generica_llm is None:
+                api_key = os.getenv("GOOGLE_API_KEY")
+                if not api_key:
+                    raise RuntimeError("Falta GOOGLE_API_KEY en .env")
+                generica_llm = ChatGoogleGenerativeAI(
+                    model=os.getenv("MODELO", "gemini-3.5-flash-lite"),
+                    google_api_key=api_key,
+                )
+            system_prompt = f"{RESPUESTA_GENERICA_PROMPT}\n\nCONTEXTO DE LA TIENDA:\n{TIENDA_CONTEXT}"
+            historial = state.get("messages", [])
+            respuesta_modelo = generica_llm.invoke(
+                [SystemMessage(content=system_prompt), *historial]
+            )
+            respuesta = str(respuesta_modelo.content).strip()
+            if not respuesta:
+                raise RuntimeError("El modelo devolvió una respuesta vacía")
+            respuesta = "\n".join(respuesta.splitlines()[:3])
+            respuesta_modelo = AIMessage(content=respuesta)
+        except Exception:
+            logger.exception("Falló el modelo de la ruta generica; usando fallback")
+            respuesta = GENERICA_FALLBACK
+            respuesta_modelo = AIMessage(content=respuesta)
+
+        return {"respuesta": respuesta, "messages": [respuesta_modelo]}
 
     def seleccionar_ruta(state: RouterState) -> str:
         return state["ruta"]

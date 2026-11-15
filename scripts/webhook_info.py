@@ -1,6 +1,7 @@
 """Consulta el estado del webhook de Telegram usando solo httpx."""
 
 import os
+import json
 from pathlib import Path
 
 import httpx
@@ -18,7 +19,7 @@ def main() -> None:
         f"https://api.telegram.org/bot{token}/getWebhookInfo",
         timeout=30.0,
     )
-    print(response.text)
+    print(json.dumps(response.json(), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
