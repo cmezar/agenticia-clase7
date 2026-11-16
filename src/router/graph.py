@@ -38,6 +38,7 @@ from .tools import (
     mejores_ofertas,
     ver_producto,
     crear_reclamo,
+    consultar_redes,
     estado_pedido,
     politica,
 )
@@ -181,7 +182,10 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
         )
         return {"ruta": decision.ruta, "motivo": decision.motivo}
 
-    def agente_preventa(state: RouterState) -> dict:
+    def agente_preventa(
+        state: RouterState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
         nonlocal preventa_agent
         if preventa_agent is None:
             api_key = os.getenv("GOOGLE_API_KEY")
@@ -193,23 +197,30 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
             )
             preventa_agent = create_agent(
                 model=modelo,
-                tools=[buscar_productos, ver_producto, mejores_ofertas],
+                tools=[buscar_productos, ver_producto, mejores_ofertas, consultar_redes],
                 system_prompt=AGENTE_PREVENTA_PROMPT,
             )
 
-        historial = state.get("messages", [])
-        resultado = preventa_agent.invoke({"messages": historial})
-        mensajes_agente = resultado.get("messages", [])
-        mensajes_nuevos = (
-            mensajes_agente[len(historial) :]
-            if len(mensajes_agente) >= len(historial)
-            else list(mensajes_agente)
-        )
-        mensaje_final = mensajes_agente[-1] if mensajes_agente else AIMessage(content="")
-        respuesta = _contenido_mensaje(mensaje_final)
-        if not mensajes_nuevos or mensajes_nuevos[-1] is not mensaje_final:
-            mensajes_nuevos.append(mensaje_final)
-        return {"respuesta": respuesta, "messages": mensajes_nuevos}
+        thread_id = str((config or {}).get("configurable", {}).get("thread_id", "sin-thread"))
+        token = set_thread_id(thread_id)
+        try:
+            historial = state.get("messages", [])
+            resultado = preventa_agent.invoke({"messages": historial})
+            mensajes_agente = resultado.get("messages", [])
+            mensajes_nuevos = (
+                mensajes_agente[len(historial) :]
+                if len(mensajes_agente) >= len(historial)
+                else list(mensajes_agente)
+            )
+            mensaje_final = (
+                mensajes_agente[-1] if mensajes_agente else AIMessage(content="")
+            )
+            respuesta = _contenido_mensaje(mensaje_final)
+            if not mensajes_nuevos or mensajes_nuevos[-1] is not mensaje_final:
+                mensajes_nuevos.append(mensaje_final)
+            return {"respuesta": respuesta, "messages": mensajes_nuevos}
+        finally:
+            reset_thread_id(token)
 
     def agente_postventa(
         state: RouterState,
@@ -233,7 +244,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
         thread_id = str((config or {}).get("configurable", {}).get("thread_id", "sin-thread"))
         token = set_thread_id(thread_id)
         try:
-            historial = _historial_visible(state.get("messages", []))
+            historial = state.get("messages", [])
             resultado = postventa_agent.invoke({"messages": historial})
             mensajes_agente = resultado.get("messages", [])
             mensajes_nuevos = (
@@ -263,7 +274,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
                     google_api_key=api_key,
                 )
             system_prompt = f"{RESPUESTA_GENERICA_PROMPT}\n\nCONTEXTO DE LA TIENDA:\n{TIENDA_CONTEXT}"
-            historial = state.get("messages", [])
+            historial = _historial_visible(state.get("messages", []))
             respuesta_modelo = generica_llm.invoke(
                 [SystemMessage(content=system_prompt), *historial]
             )

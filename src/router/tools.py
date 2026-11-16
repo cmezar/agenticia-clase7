@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from langchain_core.tools import tool
 
+from .a2a_redes import preguntar_redes
 from .catalogo import CATALOGO_NO_DISPONIBLE, consultar_catalogo, serializar_filas
 from .postventa_data import buscar_pedido, leer_politica
-from .reclamos import crear_reclamo as guardar_reclamo
+from .reclamos import crear_reclamo as guardar_reclamo, current_thread_id
+
+
+logger = logging.getLogger(__name__)
 
 
 @tool
@@ -86,6 +92,19 @@ def mejores_ofertas(categoria: str | None = None, limite: int = 5) -> str:
     """
     params.append(limite_seguro)
     return serializar_filas(consultar_catalogo(sql, params))
+
+
+@tool
+def consultar_redes(tema: str) -> str:
+    """Consulta qué se comenta en redes y noticias sobre una marca o producto."""
+    try:
+        respuesta = asyncio.run(preguntar_redes(tema, current_thread_id()))
+        if not respuesta:
+            return "el agente de redes no está disponible"
+        return respuesta[:1500]
+    except Exception:
+        logger.exception("No se pudo consultar el agente de redes por A2A")
+        return "el agente de redes no está disponible"
 
 
 @tool

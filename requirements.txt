@@ -9,3 +9,4 @@ python-dotenv
 pytest
 langgraph-checkpoint-postgres
 psycopg[binary,pool]
+a2a-sdk[http-server,fastapi]==1.2.2
