@@ -160,6 +160,23 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
 
     def router(state: RouterState) -> dict:
         nonlocal router_llm
+        mensaje_normalizado = " ".join(state["mensaje"].strip().lower().split())
+        saludos = {
+            "hola",
+            "holaa",
+            "holaaa",
+            "buenas",
+            "buenos dias",
+            "buenas tardes",
+            "buenas noches",
+            "hey",
+            "hi",
+        }
+        if mensaje_normalizado in saludos:
+            return {
+                "ruta": "generica",
+                "motivo": "Es un saludo independiente, sin una intención de compra o postventa.",
+            }
         if router_llm is None:
             api_key = os.getenv("GOOGLE_API_KEY")
             if not api_key:
@@ -173,7 +190,8 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
         ruta_anterior = state.get("ruta")
         contexto_ruta = (
             f"\nLa ruta anterior fue: {ruta_anterior}. "
-            "Las respuestas breves del usuario continúan esa ruta, salvo que haya una intención clara de cambiar."
+            "Las respuestas breves claramente relacionadas continúan esa ruta; "
+            "un saludo independiente siempre es generico."
             if ruta_anterior
             else ""
         )

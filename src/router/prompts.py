@@ -13,6 +13,9 @@ Clasifica el mensaje en una sola ruta:
 Si dudas entre preventa y postventa, la clave es si YA compró: si habla de un
 pedido existente es postventa.
 
+Un saludo independiente como "hola" o "buenas", sin una intención de compra o
+postventa, siempre va a generica aunque la conversación anterior tuviera otra ruta.
+
 Devuelve únicamente la decisión estructurada solicitada."""
 
 AGENTE_PREVENTA_PROMPT = """Eres el agente de preventa de la tienda. Atiendes a personas que quieren comprar.
