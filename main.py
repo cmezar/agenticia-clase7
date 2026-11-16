@@ -82,6 +82,11 @@ def main() -> None:
     persistence = None
     if hasattr(module, "create_persistence"):
         persistence = module.create_persistence()
+        if (
+            getattr(persistence, "claim_store", None) is not None
+            and hasattr(module, "configure_claim_store")
+        ):
+            module.configure_claim_store(persistence.claim_store)
         graph = module.build_graph(persistence.checkpointer)
     else:
         graph = module.build_graph()

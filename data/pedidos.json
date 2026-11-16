@@ -1,0 +1,74 @@
+[
+  {
+    "numero": "PED-1001",
+    "nombre_cliente": "Ana Pérez",
+    "productos": ["Samsung Galaxy A55 5G"],
+    "fecha_compra": "2026-11-02",
+    "estado": "despachado",
+    "fecha_estimada_entrega": "2026-11-17",
+    "codigo_seguimiento": "TH-CL-1001"
+  },
+  {
+    "numero": "PED-1002",
+    "nombre_cliente": "Carlos Muñoz",
+    "productos": ["LG OLED 55 pulgadas"],
+    "fecha_compra": "2026-11-04",
+    "estado": "entregado",
+    "fecha_estimada_entrega": "2026-11-10",
+    "codigo_seguimiento": "TH-CL-1002"
+  },
+  {
+    "numero": "PED-1003",
+    "nombre_cliente": "Sofía Rojas",
+    "productos": ["Apple iPhone 15", "Funda protectora transparente"],
+    "fecha_compra": "2026-11-08",
+    "estado": "preparando",
+    "fecha_estimada_entrega": "2026-11-19",
+    "codigo_seguimiento": "TH-CL-1003"
+  },
+  {
+    "numero": "PED-1004",
+    "nombre_cliente": "Diego Soto",
+    "productos": ["Sony BRAVIA 4K 65 pulgadas"],
+    "fecha_compra": "2026-10-25",
+    "estado": "devuelto",
+    "fecha_estimada_entrega": "2026-10-31",
+    "codigo_seguimiento": "TH-CL-1004"
+  },
+  {
+    "numero": "PED-1005",
+    "nombre_cliente": "Marcela González",
+    "productos": ["Xiaomi Redmi Note 13 Pro"],
+    "fecha_compra": "2026-11-06",
+    "estado": "despachado",
+    "fecha_estimada_entrega": "2026-11-18",
+    "codigo_seguimiento": "TH-CL-1005"
+  },
+  {
+    "numero": "PED-1006",
+    "nombre_cliente": "Jorge Vidal",
+    "productos": ["TCL QLED 55 pulgadas"],
+    "fecha_compra": "2026-11-01",
+    "estado": "entregado",
+    "fecha_estimada_entrega": "2026-11-08",
+    "codigo_seguimiento": "TH-CL-1006"
+  },
+  {
+    "numero": "PED-1007",
+    "nombre_cliente": "Valentina Silva",
+    "productos": ["Motorola Edge 50 Fusion"],
+    "fecha_compra": "2026-11-10",
+    "estado": "preparando",
+    "fecha_estimada_entrega": "2026-11-21",
+    "codigo_seguimiento": "TH-CL-1007"
+  },
+  {
+    "numero": "PED-1008",
+    "nombre_cliente": "Felipe Contreras",
+    "productos": ["Philips Ambilight 50 pulgadas"],
+    "fecha_compra": "2026-10-20",
+    "estado": "devuelto",
+    "fecha_estimada_entrega": "2026-10-27",
+    "codigo_seguimiento": "TH-CL-1008"
+  }
+]

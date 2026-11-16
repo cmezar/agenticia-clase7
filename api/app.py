@@ -15,6 +15,7 @@ from fastapi.security import APIKeyHeader
 from starlette.concurrency import run_in_threadpool
 
 from src.router.graph import PersistenceResources, build_graph, create_persistence
+from src.router.reclamos import configure_claim_store
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ async def lifespan(_app: FastAPI):
     global _persistence, _memory_type, graph
     _persistence = create_persistence()
     _memory_type = _persistence.memory_type
+    if _persistence.claim_store is not None:
+        configure_claim_store(_persistence.claim_store)
     graph = build_graph(_persistence.checkpointer)
     try:
         yield
