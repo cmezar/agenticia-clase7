@@ -65,6 +65,24 @@ def _contenido_mensaje(message: object) -> str:
     return str(content).strip()
 
 
+def _historial_visible(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Conserva la conversación visible y excluye turnos internos de herramientas."""
+    conversacion = [
+        message
+        for message in messages
+        if getattr(message, "type", "") != "tool"
+        and not getattr(message, "tool_calls", None)
+    ]
+    while conversacion and getattr(conversacion[0], "type", "") != "human":
+        conversacion.pop(0)
+    return conversacion
+
+
+def _historial_para_router(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Devuelve los últimos cuatro turnos visibles para clasificar la ruta."""
+    return _historial_visible(messages)[-4:]
+
+
 class Decision(BaseModel):
     """Decisión estructurada del router."""
 
@@ -150,7 +168,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
                 google_api_key=api_key,
             )
             router_llm = llm.with_structured_output(Decision)
-        historial = state.get("messages", [])[-4:]
+        historial = _historial_para_router(state.get("messages", []))
         ruta_anterior = state.get("ruta")
         contexto_ruta = (
             f"\nLa ruta anterior fue: {ruta_anterior}. "
@@ -215,7 +233,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
         thread_id = str((config or {}).get("configurable", {}).get("thread_id", "sin-thread"))
         token = set_thread_id(thread_id)
         try:
-            historial = state.get("messages", [])
+            historial = _historial_visible(state.get("messages", []))
             resultado = postventa_agent.invoke({"messages": historial})
             mensajes_agente = resultado.get("messages", [])
             mensajes_nuevos = (

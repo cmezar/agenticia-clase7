@@ -86,6 +86,78 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "
 El endpoint `/chat` devuelve `ruta`, `motivo` y `respuesta`. Un body sin
 `texto` recibe `422`; si falla el proveedor del modelo, la API responde `502`.
 
+## n8n: la puerta de entrada
+
+### 1) El recorrido
+
+El recorrido de una conversación es:
+
+```mermaid
+flowchart LR
+    T[Telegram] --> TT[Telegram Trigger]
+    TT --> TXT{¿Trae texto?}
+    TXT --> N[Normalizar]
+    TXT --> VOZ{¿Trae voz?}
+    VOZ --> DA[Descargar audio]
+    DA --> TR[Transcribir]
+    TR --> TA[Texto del audio]
+    N --> EA[Endpoint Agente]
+    TA --> EA
+    EA --> API[POST /chat en Heroku]
+    API --> R[router]
+    R --> P[preventa]
+    R --> PO[postventa]
+    R --> G[genérica]
+    P --> RT[Respuesta por Telegram]
+    PO --> RT
+    G --> RT
+    API -.-> DB[(Postgres: conversación)]
+```
+
+En resumen: Telegram entra a n8n, el flujo distingue texto y voz, y ambos
+caminos terminan en `Endpoint Agente`. Ese nodo llama a `POST /chat` en
+Heroku; el router deriva a preventa, postventa o genérica y la respuesta vuelve
+a Telegram. La conversación se guarda en Postgres mediante `thread_id`.
+
+### 2) Cómo reproducirlo
+
+1. Importa `n8n/flujo_telegram_agente.json` en n8n.
+2. Crea estas tres credenciales:
+   - **Telegram API**, con el token del bot.
+   - **Header Auth**, con nombre `X-API-Key` y la clave de la API.
+   - **Google Gemini**, con la clave del modelo.
+3. Cambia la URL del nodo **Endpoint Agente** por la URL de tu API desplegada.
+4. Publica el flujo.
+
+### 3) Qué no está en el repositorio
+
+Las credenciales de n8n y la clave de la API no están en el repositorio. Se
+solicitan por una vía privada y nunca deben escribirse en commits, prompts ni
+archivos públicos.
+
+### 4) Qué pasa cuando falla
+
+- **Audio de voz:** n8n lo transcribe y lo envía como texto al agente.
+- **Audio que no se pudo transcribir:** responde `Audio no entendido`.
+- **Foto o sticker:** responde `Solo texto o voz`.
+- **API caída o clave incorrecta:** responde `Avisar la falla`.
+- **Postgres caído:** la API continúa con memoria en RAM y `/health` informa
+  `"memoria": "ram"`.
+
+### 5) La memoria y los datos
+
+Postgres guarda los checkpoints de las conversaciones y los reclamos creados
+por postventa. Puedes consultar esa información desde la raíz del proyecto:
+
+```powershell
+python scripts/ver_memoria.py
+python scripts/ver_memoria.py NOMBRE_DEL_HILO
+python scripts/ver_reclamos.py
+```
+
+La variable `DATABASE_URL` se configura en `.env` para local y como Config Var
+en Heroku. Su valor se solicita por una vía privada y no debe publicarse.
+
 ## Pruebas
 
 Ejecuta toda la suite:
